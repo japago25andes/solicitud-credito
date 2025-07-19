@@ -11,8 +11,10 @@ RUN pip install -r requirements.txt
 # Copiar aplicación
 COPY . .
 
+ENV GOOGLE_APPLICATION_CREDENTIALS=/app/service-account.json
+
 # Puerto
-EXPOSE 5000
+EXPOSE 5001
 
 # Ejecutar aplicación
 CMD ["python", "app.py"]

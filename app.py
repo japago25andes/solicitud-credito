@@ -1,9 +1,17 @@
 from flask import Flask, request, jsonify
+from flask_cors import CORS
+from google.cloud import tasks_v2
 from datetime import datetime
+
 import json
-# Importar la librería del sistema de colas cuando se defina cuál usar
+import logging
+import os
+
 
 app = Flask(__name__)
+CORS(app, origins="*")
+
+logging.basicConfig(level=logging.INFO)
 
 @app.route('/solicitud-credito', methods=['POST'])
 def recibir_solicitud_credito():
@@ -78,14 +86,34 @@ def recibir_solicitud_credito():
 
 def enviar_a_cola(datos):
     """
-    Función temporal para simular envío a cola
-    Pendiente implementar la integración real con el sistema de colas
+    Envía el mensaje a una cola de Google Cloud Tasks
     """
-    print("=== ENVIANDO A COLA ===")
-    print(f"Datos: {json.dumps(datos, indent=2, default=str)}")
-    print("=== ENVIADO EXITOSAMENTE ===")
-        
-    return True
+    try:
+        endpoint = os.environ.get('TASK_ENDPOINT')
+        client = tasks_v2.CloudTasksClient()
+        project = 'misw4301-g26'
+        queue = 'credit-process-queue'
+        location = 'us-central1'  # Endpoint that will process the task
+        payload = json.dumps(datos)
+
+        parent = client.queue_path(project, location, queue)
+
+        task = {
+            'http_request': {
+                'http_method': tasks_v2.HttpMethod.POST,
+                'url': endpoint,
+                'headers': {'Content-Type': 'application/json'},
+                'body': payload.encode()
+            }
+        }
+        logging.info(f"=== ENVIANDO A COLA ===")
+        logging.info(f"Datos: {json.dumps(datos, indent=2, default=str)}")
+        response = client.create_task(parent=parent, task=task)
+        logging.info(f"=== ENVIADO EXITOSAMENTE ===")
+        return True
+    except Exception as e:
+        logging.error(f"Error al enviar a la cola: {str(e)}")
+        return False
 
 @app.route('/health', methods=['GET'])
 def health_check():
@@ -100,6 +128,5 @@ def health_check():
 
 if __name__ == '__main__':
     # Configuración para Docker y desarrollo
-    import os
-    port = int(os.environ.get('PORT', 5000))
+    port = int(os.environ.get('PORT', 5001))
     app.run(debug=False, host='0.0.0.0', port=port)
